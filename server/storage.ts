@@ -244,8 +244,8 @@ export class MemStorage implements IStorage {
       id, 
       createdAt, 
       completedAt: null,
-      status: task.status || "open",
-      budget: task.budget || null
+      status: task.status || "open", // ensure status is always defined
+      budget: task.budget !== undefined ? task.budget : null
     };
     this.tasks.set(id, newTask);
     return newTask;
@@ -288,9 +288,9 @@ export class MemStorage implements IStorage {
       ...request, 
       id, 
       createdAt,
-      status: request.status || "pending",
-      message: request.message || null,
-      taskId: request.taskId || null
+      status: request.status || "pending", // ensure status is always defined
+      message: request.message !== undefined ? request.message : null,
+      taskId: request.taskId !== undefined ? request.taskId : null
     };
     this.serviceRequests.set(id, newRequest);
     return newRequest;
@@ -329,7 +329,7 @@ export class MemStorage implements IStorage {
       ...review, 
       id, 
       createdAt,
-      comment: review.comment || null
+      comment: review.comment !== undefined ? review.comment : null
     };
     this.reviews.set(id, newReview);
     
