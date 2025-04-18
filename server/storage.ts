@@ -284,7 +284,14 @@ export class MemStorage implements IStorage {
   async createServiceRequest(request: InsertServiceRequest): Promise<ServiceRequest> {
     const id = this.currentId.serviceRequests++;
     const createdAt = new Date();
-    const newRequest: ServiceRequest = { ...request, id, createdAt };
+    const newRequest: ServiceRequest = { 
+      ...request, 
+      id, 
+      createdAt,
+      status: request.status || "pending",
+      message: request.message || null,
+      taskId: request.taskId || null
+    };
     this.serviceRequests.set(id, newRequest);
     return newRequest;
   }
@@ -318,7 +325,12 @@ export class MemStorage implements IStorage {
   async createReview(review: InsertReview): Promise<Review> {
     const id = this.currentId.reviews++;
     const createdAt = new Date();
-    const newReview: Review = { ...review, id, createdAt };
+    const newReview: Review = { 
+      ...review, 
+      id, 
+      createdAt,
+      comment: review.comment || null
+    };
     this.reviews.set(id, newReview);
     
     // Update service provider rating
