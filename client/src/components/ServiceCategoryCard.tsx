@@ -43,7 +43,7 @@ export default function ServiceCategoryCard({ category }: ServiceCategoryCardPro
       case "BookOpen":
         return <BookOpen className="h-7 w-7" />;
       case "Paw":
-        return <Paw className="h-7 w-7" />;
+        return <PawPrint className="h-7 w-7" />;
       default:
         return <HelpCircle className="h-7 w-7" />;
     }
