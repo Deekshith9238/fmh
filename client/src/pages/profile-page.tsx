@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import MainLayout from "@/components/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Settings, BriefcaseBusiness } from "lucide-react";
+import { Loader2, User, Settings, BriefcaseBusiness, Bell } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -97,27 +97,29 @@ export default function ProfilePage() {
   });
 
   // Set form values when profiles are loaded
-  useState(() => {
+  useEffect(() => {
     if (userProfile) {
       profileForm.reset({
-        firstName: userProfile.firstName,
-        lastName: userProfile.lastName,
-        email: userProfile.email,
+        firstName: userProfile.firstName || "",
+        lastName: userProfile.lastName || "",
+        email: userProfile.email || "",
         phoneNumber: userProfile.phoneNumber || "",
         profilePicture: userProfile.profilePicture || "",
       });
     }
-    
+  }, [userProfile, profileForm]);
+  
+  useEffect(() => {
     if (providerProfile) {
       providerForm.reset({
-        categoryId: providerProfile.categoryId?.toString(),
-        hourlyRate: providerProfile.hourlyRate?.toString(),
+        categoryId: providerProfile.categoryId?.toString() || "",
+        hourlyRate: providerProfile.hourlyRate?.toString() || "",
         bio: providerProfile.bio || "",
         yearsOfExperience: providerProfile.yearsOfExperience?.toString() || "",
         availability: providerProfile.availability || "",
       });
     }
-  });
+  }, [providerProfile, providerForm]);
 
   // Mutation for updating user profile
   const updateProfileMutation = useMutation({
@@ -204,7 +206,9 @@ export default function ProfilePage() {
           <p className="text-neutral-600 mb-6">
             Please log in to view and edit your profile.
           </p>
-          <Button href="/auth">Log In</Button>
+          <Button asChild>
+            <a href="/auth">Log In</a>
+          </Button>
         </div>
       </MainLayout>
     );
