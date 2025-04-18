@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import AuthPage from "@/pages/auth-page";
-import { Loader2 } from "lucide-react";
+import { Loader2, MapPin, ArrowRight, Star, StarHalf } from "lucide-react";
 
 export default function HomePage() {
   const [_, setLocation] = useLocation();
@@ -91,7 +91,7 @@ export default function HomePage() {
                       onChange={(e) => setSearchLocation(e.target.value)}
                     />
                     <div className="absolute right-3 top-3 text-neutral-500">
-                      <i className="fas fa-map-marker-alt"></i>
+                      <MapPin size={16} />
                     </div>
                   </div>
                 </div>
@@ -148,7 +148,7 @@ export default function HomePage() {
           <div className="text-center">
             <Link href="/service-categories" className="text-primary font-medium inline-flex items-center">
               View all services
-              <i className="fas fa-arrow-right ml-2 text-sm"></i>
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
         </div>

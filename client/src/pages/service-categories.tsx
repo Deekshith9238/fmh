@@ -27,7 +27,7 @@ export default function ServiceCategories() {
   
   // Get category from URL params if present
   useEffect(() => {
-    const params = new URLSearchParams(location.split("?")[1]);
+    const params = new URLSearchParams(location.split("?")[1] || "");
     const categoryParam = params.get("category");
     const locationParam = params.get("location");
     
@@ -122,8 +122,8 @@ export default function ServiceCategories() {
                 <div>
                   <Label htmlFor="categoryFilter">Category</Label>
                   <Select 
-                    value={selectedCategory || ""} 
-                    onValueChange={(value) => setSelectedCategory(value || null)}
+                    value={selectedCategory || "all"} 
+                    onValueChange={(value) => value === "all" ? setSelectedCategory(null) : setSelectedCategory(value)}
                   >
                     <SelectTrigger id="categoryFilter">
                       <SelectValue placeholder="All Categories" />
