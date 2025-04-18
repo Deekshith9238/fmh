@@ -132,7 +132,14 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentId.users++;
     const createdAt = new Date();
-    const user: User = { ...insertUser, id, createdAt };
+    const user: User = { 
+      ...insertUser, 
+      id, 
+      createdAt, 
+      isServiceProvider: insertUser.isServiceProvider || false,
+      profilePicture: insertUser.profilePicture || null,
+      phoneNumber: insertUser.phoneNumber || null
+    };
     this.users.set(id, user);
     return user;
   }
@@ -157,7 +164,12 @@ export class MemStorage implements IStorage {
   
   async createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory> {
     const id = this.currentId.serviceCategories++;
-    const newCategory: ServiceCategory = { ...category, id };
+    const newCategory: ServiceCategory = { 
+      ...category, 
+      id,
+      description: category.description || null,
+      icon: category.icon || null
+    };
     this.serviceCategories.set(id, newCategory);
     return newCategory;
   }
@@ -169,7 +181,10 @@ export class MemStorage implements IStorage {
       ...provider, 
       id, 
       rating: 0, 
-      completedJobs: 0 
+      completedJobs: 0,
+      bio: provider.bio || null,
+      yearsOfExperience: provider.yearsOfExperience || null,
+      availability: provider.availability || null
     };
     this.serviceProviders.set(id, newProvider);
     return newProvider;
@@ -224,7 +239,14 @@ export class MemStorage implements IStorage {
   async createTask(task: InsertTask): Promise<Task> {
     const id = this.currentId.tasks++;
     const createdAt = new Date();
-    const newTask: Task = { ...task, id, createdAt, completedAt: null };
+    const newTask: Task = { 
+      ...task, 
+      id, 
+      createdAt, 
+      completedAt: null,
+      status: task.status || "open",
+      budget: task.budget || null
+    };
     this.tasks.set(id, newTask);
     return newTask;
   }
@@ -370,7 +392,7 @@ export class DatabaseStorage implements IStorage {
         db.insert(serviceCategories).values({ 
           name: "Pet Care", 
           description: "Pet sitting, dog walking, grooming, and other pet services",
-          icon: "Paw"
+          icon: "PawPrint"
         })
       ]);
     }
