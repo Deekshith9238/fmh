@@ -68,11 +68,13 @@ export default function HomePage() {
                           <Loader2 className="h-4 w-4 animate-spin" />
                         </div>
                       ) : (
-                        categories?.map((category) => (
-                          <SelectItem key={category.id} value={category.id.toString()}>
-                            {category.name}
-                          </SelectItem>
-                        ))
+                        <>
+                          {categories?.map((category) => (
+                            <SelectItem key={category.id} value={category.id.toString()}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </>
                       )}
                     </SelectContent>
                   </Select>
