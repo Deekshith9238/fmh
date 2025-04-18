@@ -1,4 +1,5 @@
 import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -16,6 +17,17 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// User relations
+export const usersRelations = relations(users, ({ many, one }) => ({
+  providerProfile: one(serviceProviders, {
+    fields: [users.id],
+    references: [serviceProviders.userId],
+  }),
+  clientTasks: many(tasks),
+  clientServiceRequests: many(serviceRequests, { relationName: 'client' }),
+  clientReviews: many(reviews, { relationName: 'client' }),
+}));
+
 // Service categories
 export const serviceCategories = pgTable("service_categories", {
   id: serial("id").primaryKey(),
@@ -23,6 +35,12 @@ export const serviceCategories = pgTable("service_categories", {
   description: text("description"),
   icon: text("icon"),
 });
+
+// Service categories relations
+export const serviceCategoriesRelations = relations(serviceCategories, ({ many }) => ({
+  providers: many(serviceProviders),
+  tasks: many(tasks),
+}));
 
 // Service provider profiles
 export const serviceProviders = pgTable("service_providers", {
@@ -36,6 +54,20 @@ export const serviceProviders = pgTable("service_providers", {
   rating: doublePrecision("rating"),
   completedJobs: integer("completed_jobs").default(0),
 });
+
+// Service providers relations
+export const serviceProvidersRelations = relations(serviceProviders, ({ one, many }) => ({
+  user: one(users, {
+    fields: [serviceProviders.userId],
+    references: [users.id],
+  }),
+  category: one(serviceCategories, {
+    fields: [serviceProviders.categoryId],
+    references: [serviceCategories.id],
+  }),
+  serviceRequests: many(serviceRequests),
+  reviews: many(reviews),
+}));
 
 // Tasks or job postings
 export const tasks = pgTable("tasks", {
@@ -51,6 +83,19 @@ export const tasks = pgTable("tasks", {
   completedAt: timestamp("completed_at"),
 });
 
+// Tasks relations
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  client: one(users, {
+    fields: [tasks.clientId],
+    references: [users.id],
+  }),
+  category: one(serviceCategories, {
+    fields: [tasks.categoryId],
+    references: [serviceCategories.id],
+  }),
+  serviceRequests: many(serviceRequests),
+}));
+
 // Service requests
 export const serviceRequests = pgTable("service_requests", {
   id: serial("id").primaryKey(),
@@ -62,6 +107,24 @@ export const serviceRequests = pgTable("service_requests", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Service requests relations
+export const serviceRequestsRelations = relations(serviceRequests, ({ one, many }) => ({
+  task: one(tasks, {
+    fields: [serviceRequests.taskId],
+    references: [tasks.id],
+  }),
+  provider: one(serviceProviders, {
+    fields: [serviceRequests.providerId],
+    references: [serviceProviders.id],
+  }),
+  client: one(users, {
+    fields: [serviceRequests.clientId],
+    references: [users.id],
+    relationName: 'client',
+  }),
+  reviews: many(reviews),
+}));
+
 // Reviews
 export const reviews = pgTable("reviews", {
   id: serial("id").primaryKey(),
@@ -72,6 +135,23 @@ export const reviews = pgTable("reviews", {
   comment: text("comment"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Reviews relations
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  serviceRequest: one(serviceRequests, {
+    fields: [reviews.serviceRequestId],
+    references: [serviceRequests.id],
+  }),
+  client: one(users, {
+    fields: [reviews.clientId],
+    references: [users.id],
+    relationName: 'client',
+  }),
+  provider: one(serviceProviders, {
+    fields: [reviews.providerId],
+    references: [serviceProviders.id],
+  }),
+}));
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({

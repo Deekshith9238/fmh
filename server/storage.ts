@@ -8,6 +8,9 @@ import {
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
+import { db, pool } from "./db";
+import { eq } from "drizzle-orm";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -54,7 +57,7 @@ export interface IStorage {
   getReviewsByProvider(providerId: number): Promise<Review[]>;
   
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: session.Store;
 }
 
 export class MemStorage implements IStorage {
@@ -65,7 +68,7 @@ export class MemStorage implements IStorage {
   private serviceRequests: Map<number, ServiceRequest>;
   private reviews: Map<number, Review>;
   
-  sessionStore: session.SessionStore;
+  sessionStore: session.Store;
   currentId: { [key: string]: number };
 
   constructor() {
@@ -319,4 +322,237 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
+
+  constructor() {
+    // Set up PostgreSQL session store
+    const PostgresSessionStore = connectPg(session);
+    this.sessionStore = new PostgresSessionStore({ 
+      pool, 
+      createTableIfMissing: true
+    });
+    
+    // Initialize sample service categories
+    this.initializeServiceCategories();
+  }
+  
+  private async initializeServiceCategories() {
+    // Add some default service categories if none exist
+    const categories = await db.select().from(serviceCategories);
+    
+    if (categories.length === 0) {
+      await Promise.all([
+        db.insert(serviceCategories).values({ 
+          name: "Home Cleaning", 
+          description: "House cleaning, carpet cleaning, and other home cleaning services",
+          icon: "Trash2"
+        }),
+        
+        db.insert(serviceCategories).values({ 
+          name: "Handyman", 
+          description: "General home repairs, furniture assembly, and other handyman services",
+          icon: "Hammer"
+        }),
+        
+        db.insert(serviceCategories).values({ 
+          name: "Lawn Care", 
+          description: "Lawn mowing, gardening, landscaping, and other yard work",
+          icon: "Scissors"
+        }),
+        
+        db.insert(serviceCategories).values({ 
+          name: "Tutoring", 
+          description: "Academic tutoring, test preparation, and other educational services",
+          icon: "BookOpen"
+        }),
+        
+        db.insert(serviceCategories).values({ 
+          name: "Pet Care", 
+          description: "Pet sitting, dog walking, grooming, and other pet services",
+          icon: "Paw"
+        })
+      ]);
+    }
+  }
+
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
+    const [user] = await db.update(users).set(userData).where(eq(users.id, id)).returning();
+    return user;
+  }
+
+  async getServiceCategories(): Promise<ServiceCategory[]> {
+    return db.select().from(serviceCategories);
+  }
+
+  async getServiceCategory(id: number): Promise<ServiceCategory | undefined> {
+    const [category] = await db.select().from(serviceCategories).where(eq(serviceCategories.id, id));
+    return category;
+  }
+
+  async createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory> {
+    const [newCategory] = await db.insert(serviceCategories).values(category).returning();
+    return newCategory;
+  }
+
+  async createServiceProvider(provider: InsertServiceProvider): Promise<ServiceProvider> {
+    const [newProvider] = await db.insert(serviceProviders).values({
+      ...provider,
+      rating: 0,
+      completedJobs: 0
+    }).returning();
+    
+    return newProvider;
+  }
+
+  async getServiceProvider(id: number): Promise<ServiceProvider | undefined> {
+    const [provider] = await db.select().from(serviceProviders).where(eq(serviceProviders.id, id));
+    return provider;
+  }
+
+  async getServiceProviderByUserId(userId: number): Promise<ServiceProvider | undefined> {
+    const [provider] = await db.select().from(serviceProviders).where(eq(serviceProviders.userId, userId));
+    return provider;
+  }
+
+  async getServiceProviders(): Promise<ServiceProvider[]> {
+    return db.select().from(serviceProviders);
+  }
+
+  async getServiceProvidersByCategory(categoryId: number): Promise<ServiceProvider[]> {
+    return db.select().from(serviceProviders).where(eq(serviceProviders.categoryId, categoryId));
+  }
+
+  async getServiceProviderWithUser(id: number): Promise<any | undefined> {
+    const provider = await this.getServiceProvider(id);
+    
+    if (!provider) {
+      return undefined;
+    }
+    
+    const user = await this.getUser(provider.userId);
+    const category = await this.getServiceCategory(provider.categoryId);
+    
+    if (!user || !category) {
+      return undefined;
+    }
+    
+    return {
+      ...provider,
+      user,
+      category
+    };
+  }
+
+  async updateServiceProvider(id: number, providerData: Partial<ServiceProvider>): Promise<ServiceProvider | undefined> {
+    const [provider] = await db.update(serviceProviders)
+      .set(providerData)
+      .where(eq(serviceProviders.id, id))
+      .returning();
+    
+    return provider;
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const [newTask] = await db.insert(tasks).values(task).returning();
+    return newTask;
+  }
+
+  async getTask(id: number): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task;
+  }
+
+  async getTasks(): Promise<Task[]> {
+    return db.select().from(tasks);
+  }
+
+  async getTasksByClient(clientId: number): Promise<Task[]> {
+    return db.select().from(tasks).where(eq(tasks.clientId, clientId));
+  }
+
+  async getTasksByCategory(categoryId: number): Promise<Task[]> {
+    return db.select().from(tasks).where(eq(tasks.categoryId, categoryId));
+  }
+
+  async updateTask(id: number, taskData: Partial<Task>): Promise<Task | undefined> {
+    const [task] = await db.update(tasks)
+      .set(taskData)
+      .where(eq(tasks.id, id))
+      .returning();
+    
+    return task;
+  }
+
+  async createServiceRequest(request: InsertServiceRequest): Promise<ServiceRequest> {
+    const [newRequest] = await db.insert(serviceRequests).values(request).returning();
+    return newRequest;
+  }
+
+  async getServiceRequest(id: number): Promise<ServiceRequest | undefined> {
+    const [request] = await db.select().from(serviceRequests).where(eq(serviceRequests.id, id));
+    return request;
+  }
+
+  async getServiceRequestsByProvider(providerId: number): Promise<ServiceRequest[]> {
+    return db.select().from(serviceRequests).where(eq(serviceRequests.providerId, providerId));
+  }
+
+  async getServiceRequestsByClient(clientId: number): Promise<ServiceRequest[]> {
+    return db.select().from(serviceRequests).where(eq(serviceRequests.clientId, clientId));
+  }
+
+  async updateServiceRequest(id: number, requestData: Partial<ServiceRequest>): Promise<ServiceRequest | undefined> {
+    const [request] = await db.update(serviceRequests)
+      .set(requestData)
+      .where(eq(serviceRequests.id, id))
+      .returning();
+    
+    return request;
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const [newReview] = await db.insert(reviews).values(review).returning();
+    
+    // Update service provider rating
+    const providerReviews = await this.getReviewsByProvider(review.providerId);
+    const provider = await this.getServiceProvider(review.providerId);
+    
+    if (provider) {
+      const totalRating = providerReviews.reduce((sum, review) => sum + review.rating, 0) + review.rating;
+      const newRating = totalRating / (providerReviews.length + 1);
+      
+      await this.updateServiceProvider(review.providerId, {
+        rating: parseFloat(newRating.toFixed(1))
+      });
+    }
+    
+    return newReview;
+  }
+
+  async getReviewsByProvider(providerId: number): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.providerId, providerId));
+  }
+}
+
+export const storage = new DatabaseStorage();
