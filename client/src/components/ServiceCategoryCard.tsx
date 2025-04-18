@@ -1,6 +1,13 @@
 import { Link } from "wouter";
 import { ServiceCategory } from "@shared/schema";
-import * as LucideIcons from "lucide-react";
+import { 
+  Trash2, 
+  Hammer, 
+  Scissors, 
+  BookOpen, 
+  PawPrint, 
+  HelpCircle
+} from "lucide-react";
 
 interface ServiceCategoryCardProps {
   category: ServiceCategory;
@@ -24,24 +31,29 @@ export default function ServiceCategoryCard({ category }: ServiceCategoryCardPro
     }
   };
 
-  // Function to render the appropriate Lucide icon
-  const Icon = () => {
-    const iconName = category.icon as keyof typeof LucideIcons;
-    
-    // Default icon if the one specified doesn't exist
-    if (!iconName || !(iconName in LucideIcons)) {
-      return <LucideIcons.HelpCircle className="h-7 w-7" />;
+  // Render the icon based on the icon name from the database
+  const renderIcon = () => {
+    switch (category.icon) {
+      case "Trash2":
+        return <Trash2 className="h-7 w-7" />;
+      case "Hammer":
+        return <Hammer className="h-7 w-7" />;
+      case "Scissors":
+        return <Scissors className="h-7 w-7" />;
+      case "BookOpen":
+        return <BookOpen className="h-7 w-7" />;
+      case "Paw":
+        return <Paw className="h-7 w-7" />;
+      default:
+        return <HelpCircle className="h-7 w-7" />;
     }
-    
-    const IconComponent = LucideIcons[iconName];
-    return <IconComponent className="h-7 w-7" />;
   };
 
   return (
     <Link href={`/service-categories?category=${category.id}`}>
       <div className="service-category-icon flex flex-col items-center p-4 rounded-xl hover:shadow-md cursor-pointer transition-all">
         <div className={`w-16 h-16 rounded-full ${getIconColor()} flex items-center justify-center mb-3`}>
-          <Icon />
+          {renderIcon()}
         </div>
         <span className="font-medium text-center">{category.name}</span>
       </div>
