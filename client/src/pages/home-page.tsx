@@ -260,11 +260,11 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200">
               <div className="flex items-center text-yellow-500 mb-4">
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
               </div>
               <p className="text-neutral-700 mb-4">"Found an excellent handyman through TaskHire. He arrived on time, fixed my leaky faucet quickly, and charged a fair price. Will definitely use the service again!"</p>
               <div className="flex items-center">
@@ -280,11 +280,11 @@ export default function HomePage() {
             
             <div className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200">
               <div className="flex items-center text-yellow-500 mb-4">
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
               </div>
               <p className="text-neutral-700 mb-4">"As a service provider, TaskHire has been a game-changer for my business. I've connected with dozens of new clients and grown my customer base significantly."</p>
               <div className="flex items-center">
@@ -300,11 +300,11 @@ export default function HomePage() {
             
             <div className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200">
               <div className="flex items-center text-yellow-500 mb-4">
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star"></i>
-                <i className="fas fa-star-half-alt"></i>
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <Star className="h-5 w-5 fill-current" />
+                <StarHalf className="h-5 w-5 fill-current" />
               </div>
               <p className="text-neutral-700 mb-4">"I needed help moving some furniture on short notice. Within an hour of posting my task, I had three offers from providers. The moving help I booked was excellent!"</p>
               <div className="flex items-center">
