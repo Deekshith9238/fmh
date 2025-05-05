@@ -50,7 +50,7 @@ const providerExtendedSchema = z.object({
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "taskhire-secret-key",
+    secret: process.env.SESSION_SECRET || "Find My Helper-secret-key",
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
