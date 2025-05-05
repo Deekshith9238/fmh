@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,7 +144,6 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
   if (user && !isModal) {
     return <Redirect to="/" />;
   }
-
   // Render the auth page content
   const authContent = (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -504,15 +503,14 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
   if (isModal) {
     return (
       <div className="relative">
-        {onClose && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-2 top-2 z-10"
+        {isModal && onClose && (
+          <button
             onClick={onClose}
+            className="absolute top-4 right-4 text-neutral-500 hover:text-neutral-900 transition"
+            aria-label="Close"
           >
-            <X className="h-4 w-4" />
-          </Button>
+            <X className="h-5 w-5" />
+          </button>
         )}
         {authContent}
       </div>
@@ -533,7 +531,7 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
             <div className="max-w-xl">
               <h2 className="text-3xl font-bold mb-4">Connect with local service professionals</h2>
               <p className="text-xl mb-6">
-                TaskHire connects you with skilled professionals for all your service needs.
+                Find My Helper connects you with skilled professionals for all your service needs.
               </p>
               <div className="space-y-4">
                 <div className="flex items-center">

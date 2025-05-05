@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         queryClient.setQueryData(["/api/user"], data);
         toast({
           title: "Registration successful",
-          description: `Welcome to TaskHire, ${data.firstName}!`,
+          description: `Welcome to Find My Helper, ${data.firstName}!`,
         });
       }
       

@@ -266,7 +266,7 @@ export default function HomePage() {
                 <Star className="h-5 w-5 fill-current" />
                 <Star className="h-5 w-5 fill-current" />
               </div>
-              <p className="text-neutral-700 mb-4">"Found an excellent handyman through TaskHire. He arrived on time, fixed my leaky faucet quickly, and charged a fair price. Will definitely use the service again!"</p>
+              <p className="text-neutral-700 mb-4">"Found an excellent handyman through Find My Helper. He arrived on time, fixed my leaky faucet quickly, and charged a fair price. Will definitely use the service again!"</p>
               <div className="flex items-center">
                 <div className="w-10 h-10 rounded-full bg-neutral-200 mr-3 overflow-hidden">
                   <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb" alt="Client" className="w-full h-full object-cover" />
@@ -286,7 +286,7 @@ export default function HomePage() {
                 <Star className="h-5 w-5 fill-current" />
                 <Star className="h-5 w-5 fill-current" />
               </div>
-              <p className="text-neutral-700 mb-4">"As a service provider, TaskHire has been a game-changer for my business. I've connected with dozens of new clients and grown my customer base significantly."</p>
+              <p className="text-neutral-700 mb-4">"As a service provider, Find My Helper has been a game-changer for my business. I've connected with dozens of new clients and grown my customer base significantly."</p>
               <div className="flex items-center">
                 <div className="w-10 h-10 rounded-full bg-neutral-200 mr-3 overflow-hidden">
                   <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e" alt="Provider" className="w-full h-full object-cover" />
