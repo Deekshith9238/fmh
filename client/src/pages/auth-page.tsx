@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Redirect } from "wouter";
 import MainLayout from "@/components/MainLayout";
+import { useLocation } from "wouter";
 
 // Login form schema
 const loginSchema = z.object({
@@ -80,9 +81,10 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
   const [activeTab, setActiveTab] = useState<string>(defaultToProvider ? "register" : "login");
   const [accountType, setAccountType] = useState<string>(defaultToProvider ? "provider" : "client");
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
   
   // Fetch service categories for provider signup
-  const { data: categories } = useQuery({
+  const { data: categories = [] } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/categories"],
     enabled: activeTab === "register" && accountType === "provider",
   });
@@ -117,20 +119,42 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
 
   // Handle login form submission
   function onLoginSubmit(values: LoginFormValues) {
-    loginMutation.mutate(values);
+    loginMutation.mutate(values, {
+      onError: (error: any) => {
+        if (error?.message?.includes("verify your email")) {
+          toast({
+            title: "Email not verified",
+            description: "Please check your email and verify your account before logging in.",
+            variant: "destructive",
+          });
+        }
+      },
+    });
   }
 
   // Handle register form submission
   function onRegisterSubmit(values: RegisterFormValues) {
-    // Convert relevant fields
-    const hourlyRate = values.hourlyRate ? parseFloat(values.hourlyRate) : undefined;
-    const yearsOfExperience = values.yearsOfExperience ? parseInt(values.yearsOfExperience) : undefined;
-    
-    registerMutation.mutate({
+    let payload: any = {
       ...values,
       isServiceProvider: accountType === "provider",
-      hourlyRate,
-      yearsOfExperience,
+    };
+    if (accountType === "provider") {
+      payload.hourlyRate = values.hourlyRate ? parseFloat(values.hourlyRate) : undefined;
+      payload.yearsOfExperience = values.yearsOfExperience ? parseInt(values.yearsOfExperience) : undefined;
+    } else {
+      delete payload.hourlyRate;
+      delete payload.yearsOfExperience;
+    }
+    registerMutation.mutate(payload, {
+      onSuccess: (data: any) => {
+        if (data?.message?.includes("verify your account")) {
+          toast({
+            title: "Registration successful",
+            description: "Please check your email to verify your account before logging in.",
+          });
+          setActiveTab("login");
+        }
+      },
     });
   }
 
@@ -502,16 +526,7 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
   // If it's a modal, just return the content
   if (isModal) {
     return (
-      <div className="relative">
-        {isModal && onClose && (
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-neutral-500 hover:text-neutral-900 transition"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
+      <div className="relative max-h-[90vh] overflow-y-auto">
         {authContent}
       </div>
     );
@@ -531,7 +546,7 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
             <div className="max-w-xl">
               <h2 className="text-3xl font-bold mb-4">Connect with local service professionals</h2>
               <p className="text-xl mb-6">
-                Find My Helper connects you with skilled professionals for all your service needs.
+                FindMyHelper connects you with skilled professionals for all your service needs.
               </p>
               <div className="space-y-4">
                 <div className="flex items-center">
@@ -558,5 +573,39 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
         </div>
       </div>
     </MainLayout>
+  );
+}
+
+export function VerifyEmailPage() {
+  const [message, setMessage] = useState("Verifying...");
+  const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (!token) {
+      setMessage("Invalid verification link.");
+      return;
+    }
+    fetch(`/api/verify-email?token=${token}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (res.ok) {
+          setMessage("Email verified successfully! You can now log in.");
+          setTimeout(() => setLocation("/auth"), 3000);
+        } else {
+          setMessage(data.message || "Verification failed.");
+        }
+      })
+      .catch(() => setMessage("Verification failed. Please try again later."));
+  }, [setLocation]);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <div className="bg-white p-8 rounded shadow text-center">
+        <h1 className="text-2xl font-bold mb-4">Email Verification</h1>
+        <p>{message}</p>
+      </div>
+    </div>
   );
 }
