@@ -10,7 +10,7 @@ export default function Footer() {
               <span className="bg-primary text-white p-1 rounded mr-1">
                 <i className="fas fa-tasks"></i>
               </span>
-              Find My Helper
+              FindMyHelper
             </div>
             <p className="mb-4">Connect with skilled local service providers for any job, big or small.</p>
             <div className="flex space-x-4">
@@ -64,7 +64,7 @@ export default function Footer() {
         </div>
         
         <div className="border-t border-neutral-700 pt-6 mt-6">
-          <p className="text-sm text-center">© {new Date().getFullYear()} Find My Helper. All rights reserved.</p>
+          <p className="text-sm text-center">© {new Date().getFullYear()} FindMyHelper. All rights reserved.</p>
         </div>
       </div>
     </footer>

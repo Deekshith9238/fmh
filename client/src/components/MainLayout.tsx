@@ -41,7 +41,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
               <span className="bg-primary text-white p-1 rounded mr-1">
                 <i className="fas fa-tasks"></i>
               </span>
-              Find My Helper
+              FindMyHelper
             </Link>
           </div>
 

@@ -22,6 +22,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
+  getUserByVerificationToken(token: string): Promise<User | undefined>;
   
   // Service Category methods
   getServiceCategories(): Promise<ServiceCategory[]>;
@@ -151,6 +152,12 @@ export class MemStorage implements IStorage {
     const updatedUser = { ...user, ...userData };
     this.users.set(id, updatedUser);
     return updatedUser;
+  }
+
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.emailVerificationToken === token
+    );
   }
 
   // Service Category methods
@@ -586,6 +593,11 @@ export class DatabaseStorage implements IStorage {
 
   async getReviewsByProvider(providerId: number): Promise<Review[]> {
     return db.select().from(reviews).where(eq(reviews.providerId, providerId));
+  }
+
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.emailVerificationToken, token));
+    return user;
   }
 }
 

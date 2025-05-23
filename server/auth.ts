@@ -8,6 +8,9 @@ import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 import { z } from "zod";
 import { insertUserSchema } from "@shared/schema";
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+dotenv.config();
 
 declare global {
   namespace Express {
@@ -47,6 +50,25 @@ const providerExtendedSchema = z.object({
   yearsOfExperience: z.number().optional(),
   availability: z.string().optional(),
 });
+
+async function sendVerificationEmail(email: string, token: string) {
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT),
+    secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.***REMOVED***,
+    },
+  });
+  const verifyUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/verify-email?token=${token}`;
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: "Verify your email address",
+    html: `<p>Click <a href='${verifyUrl}'>here</a> to verify your email address.</p>`
+  });
+}
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
@@ -112,11 +134,17 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username already exists" });
       }
       
+      // Generate verification token
+      const emailVerificationToken = randomBytes(32).toString("hex");
       // Hash password and create the user
       const user = await storage.createUser({
         ...validatedData,
-        password: await hashPassword(validatedData.password)
+        password: await hashPassword(validatedData.password),
+        isEmailVerified: false,
+        emailVerificationToken,
       });
+      // Send verification email
+      await sendVerificationEmail(user.email, emailVerificationToken);
       
       // If user is a service provider, validate and create service provider profile
       if (validatedData.isServiceProvider) {
@@ -142,11 +170,8 @@ export function setupAuth(app: Express) {
         }
       }
 
-      // Log the user in
-      req.login(user, (err) => {
-        if (err) return next(err);
-        return res.status(201).json(user);
-      });
+      // Do not log the user in until they verify their email
+      return res.status(201).json({ message: "Registration successful. Please check your email to verify your account." });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ 
@@ -158,13 +183,16 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+  app.post("/api/login", async (req, res, next) => {
+    passport.authenticate("local", async (err, user, info) => {
       if (err) return next(err);
       if (!user) {
         return res.status(401).json({ message: info?.message || "Invalid credentials" });
       }
-      
+      // Check if email is verified
+      if (!user.isEmailVerified) {
+        return res.status(403).json({ message: "Please verify your email before logging in." });
+      }
       req.login(user, (err) => {
         if (err) return next(err);
         return res.status(200).json(user);
@@ -198,5 +226,18 @@ export function setupAuth(app: Express) {
     } catch (err) {
       res.status(500).json({ message: "Server error" });
     }
+  });
+
+  app.get("/api/verify-email", async (req, res) => {
+    const { token } = req.query;
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ message: "Invalid or missing token." });
+    }
+    const user = await storage.getUserByVerificationToken(token);
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired verification token." });
+    }
+    await storage.updateUser(user.id, { isEmailVerified: true, emailVerificationToken: null });
+    res.status(200).json({ message: "Email verified successfully. You can now log in." });
   });
 }
