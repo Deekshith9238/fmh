@@ -15,6 +15,8 @@ export const users = pgTable("users", {
   profilePicture: text("profile_picture"),
   phoneNumber: text("phone_number"),
   createdAt: timestamp("created_at").defaultNow(),
+  isEmailVerified: boolean("is_email_verified").notNull().default(false),
+  emailVerificationToken: text("email_verification_token"),
 });
 
 // User relations
