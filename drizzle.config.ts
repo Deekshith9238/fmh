@@ -1,9 +1,13 @@
 import { defineConfig } from "drizzle-kit";
+import * as dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+
+dotenv.config();
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
+  throw new Error("DATABASE_URL is not set");
 }
-import fs from "fs";
 
 export default defineConfig({
   out: "./migrations",
@@ -12,8 +16,10 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL,
     ssl: {
-      ca: fs.readFileSync("global-bundle.pem").toString(),
+      ca: fs.readFileSync(path.resolve("rds-ca.pem")).toString(),
+      rejectUnauthorized: true,
     },
   },
 });
+
 
