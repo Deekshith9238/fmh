@@ -20,6 +20,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
   getUserByVerificationToken(token: string): Promise<User | undefined>;
@@ -37,6 +38,7 @@ export interface IStorage {
   getServiceProvidersByCategory(categoryId: number): Promise<ServiceProvider[]>;
   getServiceProviderWithUser(id: number): Promise<any | undefined>;
   updateServiceProvider(id: number, provider: Partial<ServiceProvider>): Promise<ServiceProvider | undefined>;
+  getPendingServiceProviders(): Promise<ServiceProvider[]>;
   
   // Task methods
   createTask(task: InsertTask): Promise<Task>;
@@ -45,6 +47,7 @@ export interface IStorage {
   getTasksByClient(clientId: number): Promise<Task[]>;
   getTasksByCategory(categoryId: number): Promise<Task[]>;
   updateTask(id: number, task: Partial<Task>): Promise<Task | undefined>;
+  deleteTask(id: number): Promise<void>;
   
   // Service Request methods
   createServiceRequest(request: InsertServiceRequest): Promise<ServiceRequest>;
@@ -95,6 +98,30 @@ export class MemStorage implements IStorage {
     
     // Initialize with some service categories
     this.initializeServiceCategories();
+    
+    // Set admin privileges for specific email in development
+    if (process.env.NODE_ENV === 'development') {
+      // Create admin user if it doesn't exist
+      const adminUser = Array.from(this.users.values()).find(user => user.email === "findmyhelper2025@gmail.com");
+      if (!adminUser) {
+        this.users.set(1, {
+          id: 1,
+          username: "findmyhelper2025",
+          email: "findmyhelper2025@gmail.com",
+          password: "firebase_user",
+          firstName: "Admin",
+          lastName: "User",
+          isServiceProvider: false,
+          isAdmin: true,
+          profilePicture: null,
+          phoneNumber: null,
+          createdAt: new Date(),
+          isEmailVerified: true,
+          emailVerificationToken: null,
+          firebaseUid: "CqzX9eBxwTgQKNBlePZcKIk8ISu1"
+        });
+      }
+    }
   }
 
   // Initialize service categories
@@ -115,7 +142,16 @@ export class MemStorage implements IStorage {
 
   // User methods
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const user = this.users.get(id);
+    
+    // In development, automatically set admin privileges for specific user ID
+    if (process.env.NODE_ENV === 'development' && user && id === 1 && !user.isAdmin) {
+      const updatedUser = { ...user, isAdmin: true };
+      this.users.set(id, updatedUser);
+      return updatedUser;
+    }
+    
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
@@ -125,9 +161,33 @@ export class MemStorage implements IStorage {
   }
   
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
+    const user = Array.from(this.users.values()).find(
       (user) => user.email === email
     );
+    
+    // In development, automatically set admin privileges for specific email
+    if (process.env.NODE_ENV === 'development' && user && email === "findmyhelper2025@gmail.com" && !user.isAdmin) {
+      const updatedUser = { ...user, isAdmin: true };
+      this.users.set(user.id, updatedUser);
+      return updatedUser;
+    }
+    
+    return user;
+  }
+
+  async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
+    const user = Array.from(this.users.values()).find(
+      (user) => user.firebaseUid === firebaseUid
+    );
+    
+    // In development, automatically set admin privileges for specific Firebase UID
+    if (process.env.NODE_ENV === 'development' && user && firebaseUid === "CqzX9eBxwTgQKNBlePZcKIk8ISu1" && !user.isAdmin) {
+      const updatedUser = { ...user, isAdmin: true };
+      this.users.set(user.id, updatedUser);
+      return updatedUser;
+    }
+    
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -138,6 +198,7 @@ export class MemStorage implements IStorage {
       id, 
       createdAt, 
       isServiceProvider: insertUser.isServiceProvider || false,
+      isAdmin: insertUser.isAdmin || false,
       profilePicture: insertUser.profilePicture || null,
       phoneNumber: insertUser.phoneNumber || null
     };
@@ -191,7 +252,8 @@ export class MemStorage implements IStorage {
       completedJobs: 0,
       bio: provider.bio || null,
       yearsOfExperience: provider.yearsOfExperience || null,
-      availability: provider.availability || null
+      availability: provider.availability || null,
+      approvalStatus: 'pending', // Always set to pending
     };
     this.serviceProviders.set(id, newProvider);
     return newProvider;
@@ -242,6 +304,12 @@ export class MemStorage implements IStorage {
     return updatedProvider;
   }
 
+  async getPendingServiceProviders(): Promise<ServiceProvider[]> {
+    return Array.from(this.serviceProviders.values()).filter(
+      (provider) => provider.approvalStatus === "pending"
+    );
+  }
+
   // Task methods
   async createTask(task: InsertTask): Promise<Task> {
     const id = this.currentId.tasks++;
@@ -285,6 +353,10 @@ export class MemStorage implements IStorage {
     const updatedTask = { ...task, ...taskData };
     this.tasks.set(id, updatedTask);
     return updatedTask;
+  }
+
+  async deleteTask(id: number): Promise<void> {
+    this.tasks.delete(id);
   }
 
   // Service Request methods
@@ -367,53 +439,68 @@ export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    // Set up PostgreSQL session store
-    const PostgresSessionStore = connectPg(session);
-    this.sessionStore = new PostgresSessionStore({ 
-      pool, 
-      createTableIfMissing: true
-    });
+    if (!pool) {
+      throw new Error("Database connection not available");
+    }
+    
+    try {
+      // Set up PostgreSQL session store
+      const PostgresSessionStore = connectPg(session);
+      this.sessionStore = new PostgresSessionStore({ 
+        pool, 
+        createTableIfMissing: true
+      });
+    } catch (error) {
+      console.error('Failed to initialize PostgreSQL session store:', error);
+      // Fall back to memory session store
+      this.sessionStore = new session.MemoryStore();
+    }
     
     // Initialize sample service categories
     this.initializeServiceCategories();
   }
   
   private async initializeServiceCategories() {
-    // Add some default service categories if none exist
-    const categories = await db.select().from(serviceCategories);
-    
-    if (categories.length === 0) {
-      await Promise.all([
-        db.insert(serviceCategories).values({ 
-          name: "Home Cleaning", 
-          description: "House cleaning, carpet cleaning, and other home cleaning services",
-          icon: "Trash2"
-        }),
-        
-        db.insert(serviceCategories).values({ 
-          name: "Handyman", 
-          description: "General home repairs, furniture assembly, and other handyman services",
-          icon: "Hammer"
-        }),
-        
-        db.insert(serviceCategories).values({ 
-          name: "Lawn Care", 
-          description: "Lawn mowing, gardening, landscaping, and other yard work",
-          icon: "Scissors"
-        }),
-        
-        db.insert(serviceCategories).values({ 
-          name: "Tutoring", 
-          description: "Academic tutoring, test preparation, and other educational services",
-          icon: "BookOpen"
-        }),
-        
-        db.insert(serviceCategories).values({ 
-          name: "Pet Care", 
-          description: "Pet sitting, dog walking, grooming, and other pet services",
-          icon: "PawPrint"
-        })
-      ]);
+    try {
+      // Add some default service categories if none exist
+      const categories = await db.select().from(serviceCategories);
+      
+      if (categories.length === 0) {
+        await Promise.all([
+          db.insert(serviceCategories).values({ 
+            name: "Home Cleaning", 
+            description: "House cleaning, carpet cleaning, and other home cleaning services",
+            icon: "Trash2"
+          }),
+          
+          db.insert(serviceCategories).values({ 
+            name: "Handyman", 
+            description: "General home repairs, furniture assembly, and other handyman services",
+            icon: "Hammer"
+          }),
+          
+          db.insert(serviceCategories).values({ 
+            name: "Lawn Care", 
+            description: "Lawn mowing, gardening, landscaping, and other yard work",
+            icon: "Scissors"
+          }),
+          
+          db.insert(serviceCategories).values({ 
+            name: "Tutoring", 
+            description: "Academic tutoring, test preparation, and other educational services",
+            icon: "BookOpen"
+          }),
+          
+          db.insert(serviceCategories).values({ 
+            name: "Pet Care", 
+            description: "Pet sitting, dog walking, grooming, and other pet services",
+            icon: "PawPrint"
+          })
+        ]);
+      }
+    } catch (error) {
+      console.error('Failed to initialize service categories:', error);
+      console.log('Continuing with in-memory storage...');
     }
   }
 
@@ -460,7 +547,8 @@ export class DatabaseStorage implements IStorage {
     const [newProvider] = await db.insert(serviceProviders).values({
       ...provider,
       rating: 0,
-      completedJobs: 0
+      completedJobs: 0,
+      approvalStatus: 'pending', // Always set to pending
     }).returning();
     
     return newProvider;
@@ -537,12 +625,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTask(id: number, taskData: Partial<Task>): Promise<Task | undefined> {
-    const [task] = await db.update(tasks)
-      .set(taskData)
-      .where(eq(tasks.id, id))
-      .returning();
-    
+    const [task] = await db.update(tasks).set(taskData).where(eq(tasks.id, id)).returning();
     return task;
+  }
+
+  async deleteTask(id: number): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
   }
 
   async createServiceRequest(request: InsertServiceRequest): Promise<ServiceRequest> {
@@ -599,6 +687,26 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.emailVerificationToken, token));
     return user;
   }
+
+  async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.firebaseUid, firebaseUid));
+    return user;
+  }
+
+  async getPendingServiceProviders(): Promise<ServiceProvider[]> {
+    return db.select().from(serviceProviders).where(eq(serviceProviders.approvalStatus, "pending"));
+  }
 }
 
-export const storage = new DatabaseStorage();
+// Use database storage for production and development
+let storage: IStorage;
+
+try {
+  storage = new DatabaseStorage();
+  console.log('Using database storage');
+} catch (error) {
+  console.log('Database connection failed, falling back to in-memory storage');
+  storage = new MemStorage();
+}
+
+export { storage };

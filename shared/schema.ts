@@ -12,11 +12,13 @@ export const users = pgTable("users", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   isServiceProvider: boolean("is_service_provider").notNull().default(false),
+  isAdmin: boolean("is_admin").notNull().default(false),
   profilePicture: text("profile_picture"),
   phoneNumber: text("phone_number"),
   createdAt: timestamp("created_at").defaultNow(),
   isEmailVerified: boolean("is_email_verified").notNull().default(false),
   emailVerificationToken: text("email_verification_token"),
+  firebaseUid: text("firebase_uid").unique(),
 });
 
 // User relations
@@ -55,6 +57,13 @@ export const serviceProviders = pgTable("service_providers", {
   availability: text("availability"),
   rating: doublePrecision("rating"),
   completedJobs: integer("completed_jobs").default(0),
+  idVerificationImage: text("id_verification_image"),
+  isVerified: boolean("is_verified").default(false),
+  approvalStatus: text("approval_status").notNull().default("pending"), // pending, approved, rejected
+  adminNotes: text("admin_notes"),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: integer("reviewed_by"), // admin user ID
 });
 
 // Service providers relations

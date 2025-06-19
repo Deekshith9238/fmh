@@ -11,6 +11,7 @@ import ProviderDashboard from "@/pages/provider-dashboard";
 import ServiceCategories from "@/pages/service-categories";
 import ServiceProviderProfile from "@/pages/service-provider-profile";
 import ProfilePage from "@/pages/profile-page";
+import AdminPage from "@/pages/admin-page";
 import { ProtectedRoute } from "./lib/protected-route";
 import { AuthProvider } from "./hooks/use-auth";
 import { VerifyEmailPage } from "./pages/auth-page";
@@ -25,6 +26,7 @@ function Router() {
       <ProtectedRoute path="/client-dashboard" component={ClientDashboard} />
       <ProtectedRoute path="/provider-dashboard" component={ProviderDashboard} />
       <ProtectedRoute path="/profile" component={ProfilePage} />
+      <ProtectedRoute path="/admin" component={AdminPage} />
       <Route path="/verify-email" component={VerifyEmailPage} />
       <Route component={NotFound} />
     </Switch>

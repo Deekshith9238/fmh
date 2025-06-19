@@ -8,10 +8,387 @@ import {
   insertServiceRequestSchema,
   insertReviewSchema
 } from "@shared/schema";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import express from "express";
+import { fileURLToPath } from "url";
+import { EmailService } from "./email-service";
+import { uploadToS3 } from './s3';
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.join(__dirname, '../uploads', file.fieldname);
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow only images
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes
   setupAuth(app);
+
+  // User profile update route
+  app.put("/api/user", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to update your profile" });
+    }
+    
+    try {
+      // Validate the update data
+      const updateSchema = z.object({
+        firstName: z.string().min(1, "First name is required"),
+        lastName: z.string().min(1, "Last name is required"),
+        email: z.string().email("Invalid email address"),
+        phoneNumber: z.string().optional(),
+        profilePicture: z.string().optional(),
+      });
+      
+      const validatedData = updateSchema.parse(req.body);
+      
+      // Check if email is being changed and if it already exists
+      if (validatedData.email !== req.user.email) {
+        const existingUser = await storage.getUserByEmail(validatedData.email);
+        if (existingUser && existingUser.id !== req.user.id) {
+          return res.status(400).json({ message: "Email already exists" });
+        }
+      }
+      
+      // Update the user
+      const updatedUser = await storage.updateUser(req.user.id, validatedData);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Update the session user data
+      req.user = updatedUser;
+      
+      res.json(updatedUser);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: err.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // Service provider profile routes
+  app.post("/api/providers", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to create a provider profile" });
+    }
+    
+    try {
+      const providerSchema = z.object({
+        categoryId: z.number().min(1, "Category is required"),
+        hourlyRate: z.number().min(1, "Hourly rate must be at least 1"),
+        bio: z.string().optional(),
+        yearsOfExperience: z.number().optional(),
+        availability: z.string().optional(),
+        idVerificationImage: z.string().optional(),
+      });
+      
+      const validatedData = providerSchema.parse(req.body);
+      
+      // Check if user already has a provider profile
+      const existingProvider = await storage.getServiceProviderByUserId(req.user.id);
+      if (existingProvider) {
+        return res.status(400).json({ message: "Provider profile already exists" });
+      }
+      
+      // Determine approval status based on ID verification
+      const approvalStatus = validatedData.idVerificationImage ? "pending" : "approved";
+      const isVerified = !validatedData.idVerificationImage; // Auto-approve if no ID verification
+      
+      console.log(`Creating provider for user ${req.user.id} with approval status: ${approvalStatus}`);
+      
+      // Create the provider profile
+      const provider = await storage.createServiceProvider({
+        userId: req.user.id,
+        ...validatedData,
+        approvalStatus,
+        isVerified,
+        submittedAt: new Date(),
+      });
+      
+      console.log(`Provider created with ID: ${provider.id}, status: ${provider.approvalStatus}`);
+      
+      // Send email notification to admin if provider is pending approval
+      if (provider.approvalStatus === "pending") {
+        try {
+          // Get user and category details for the email
+          const user = await storage.getUser(provider.userId);
+          const category = await storage.getServiceCategory(provider.categoryId);
+          
+          if (user && category) {
+            // Find admin user
+            const adminUser = await storage.getUserByEmail("findmyhelper2025@gmail.com");
+            
+            if (adminUser) {
+              await EmailService.sendProviderApplicationNotification(
+                adminUser.email,
+                {
+                  providerName: `${user.firstName} ${user.lastName}`,
+                  providerEmail: user.email,
+                  category: category.name,
+                  hourlyRate: provider.hourlyRate,
+                  bio: provider.bio || "",
+                  yearsOfExperience: provider.yearsOfExperience || 0,
+                  availability: provider.availability || "",
+                  submittedAt: provider.submittedAt || new Date(),
+                }
+              );
+            }
+          }
+        } catch (error) {
+          console.error("Failed to send provider application notification:", error);
+        }
+      }
+      
+      res.status(201).json(provider);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: err.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create provider profile" });
+    }
+  });
+
+  app.put("/api/providers/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to update your provider profile" });
+    }
+    
+    try {
+      const providerId = parseInt(req.params.id);
+      const provider = await storage.getServiceProvider(providerId);
+      
+      if (!provider) {
+        return res.status(404).json({ message: "Provider profile not found" });
+      }
+      
+      // Check if the provider profile belongs to the current user
+      if (provider.userId !== req.user.id) {
+        return res.status(403).json({ message: "You can only update your own provider profile" });
+      }
+      
+      const providerSchema = z.object({
+        categoryId: z.number().min(1, "Category is required"),
+        hourlyRate: z.number().min(1, "Hourly rate must be at least 1"),
+        bio: z.string().optional(),
+        yearsOfExperience: z.number().optional(),
+        availability: z.string().optional(),
+        idVerificationImage: z.string().optional(),
+      });
+      
+      const validatedData = providerSchema.parse(req.body);
+      
+      // Update the provider profile
+      const updatedProvider = await storage.updateServiceProvider(providerId, validatedData);
+      
+      if (!updatedProvider) {
+        return res.status(404).json({ message: "Provider profile not found" });
+      }
+      
+      res.json(updatedProvider);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: err.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update provider profile" });
+    }
+  });
+
+  // Admin routes for provider approval
+  app.get("/api/admin/pending-providers", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in" });
+    }
+    
+    // Check if user has admin privileges
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    
+    try {
+      const pendingProviders = await storage.getPendingServiceProviders();
+      
+      console.log(`Found ${pendingProviders.length} pending providers`);
+      
+      // Enhance with user and category info
+      const providersWithDetails = await Promise.all(
+        pendingProviders.map(async (provider) => {
+          const user = await storage.getUser(provider.userId);
+          const category = await storage.getServiceCategory(provider.categoryId);
+          
+          if (!user || !category) return null;
+          
+          return {
+            ...provider,
+            user: {
+              id: user.id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              profilePicture: user.profilePicture,
+              username: user.username
+            },
+            category
+          };
+        })
+      );
+      
+      // Filter out null results
+      const filteredProviders = providersWithDetails.filter(p => p !== null);
+      console.log(`Returning ${filteredProviders.length} providers with details`);
+      
+      res.json(filteredProviders);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch pending providers" });
+    }
+  });
+
+  app.post("/api/admin/providers/:id/approve", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in" });
+    }
+    
+    // Check if user has admin privileges
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    
+    try {
+      const providerId = parseInt(req.params.id);
+      const { adminNotes } = req.body;
+      
+      const provider = await storage.getServiceProvider(providerId);
+      if (!provider) {
+        return res.status(404).json({ message: "Provider not found" });
+      }
+      
+      if (provider.approvalStatus !== "pending") {
+        return res.status(400).json({ message: "Provider is not pending approval" });
+      }
+      
+      const updatedProvider = await storage.updateServiceProvider(providerId, {
+        approvalStatus: "approved",
+        isVerified: true,
+        adminNotes: adminNotes || null,
+        reviewedAt: new Date(),
+        reviewedBy: req.user.id
+      });
+      
+      // Send approval notification to provider
+      try {
+        const user = await storage.getUser(provider.userId);
+        if (user) {
+          await EmailService.sendApprovalNotification({
+            approved: true,
+            adminNotes: adminNotes,
+            providerName: `${user.firstName} ${user.lastName}`,
+            providerEmail: user.email,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to send approval notification:", error);
+      }
+      
+      res.json(updatedProvider);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to approve provider" });
+    }
+  });
+
+  app.post("/api/admin/providers/:id/reject", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in" });
+    }
+    
+    // Check if user has admin privileges
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    
+    try {
+      const providerId = parseInt(req.params.id);
+      const { adminNotes } = req.body;
+      
+      if (!adminNotes) {
+        return res.status(400).json({ message: "Admin notes are required for rejection" });
+      }
+      
+      const provider = await storage.getServiceProvider(providerId);
+      if (!provider) {
+        return res.status(404).json({ message: "Provider not found" });
+      }
+      
+      if (provider.approvalStatus !== "pending") {
+        return res.status(400).json({ message: "Provider is not pending approval" });
+      }
+      
+      const updatedProvider = await storage.updateServiceProvider(providerId, {
+        approvalStatus: "rejected",
+        isVerified: false,
+        adminNotes: adminNotes,
+        reviewedAt: new Date(),
+        reviewedBy: req.user.id
+      });
+      
+      // Send rejection notification to provider
+      try {
+        const user = await storage.getUser(provider.userId);
+        if (user) {
+          await EmailService.sendApprovalNotification({
+            approved: false,
+            adminNotes: adminNotes,
+            providerName: `${user.firstName} ${user.lastName}`,
+            providerEmail: user.email,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to send rejection notification:", error);
+      }
+      
+      res.json(updatedProvider);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to reject provider" });
+    }
+  });
 
   // Service categories routes
   app.get("/api/categories", async (_req, res) => {
@@ -40,9 +417,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const providers = await storage.getServiceProviders();
       
+      // Filter to only show approved providers
+      const approvedProviders = providers.filter(provider => provider.approvalStatus === "approved");
+      
       // Fetch user and category info for each provider
       const providersWithDetails = await Promise.all(
-        providers.map(async (provider) => {
+        approvedProviders.map(async (provider) => {
           const user = await storage.getUser(provider.userId);
           const category = await storage.getServiceCategory(provider.categoryId);
           
@@ -74,9 +454,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const categoryId = parseInt(req.params.categoryId);
       const providers = await storage.getServiceProvidersByCategory(categoryId);
       
+      // Filter to only show approved providers
+      const approvedProviders = providers.filter(provider => provider.approvalStatus === "approved");
+      
       // Fetch user info for each provider
       const providersWithDetails = await Promise.all(
-        providers.map(async (provider) => {
+        approvedProviders.map(async (provider) => {
           const user = await storage.getUser(provider.userId);
           const category = await storage.getServiceCategory(provider.categoryId);
           
@@ -109,6 +492,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const providerWithDetails = await storage.getServiceProviderWithUser(providerId);
       
       if (!providerWithDetails) {
+        return res.status(404).json({ message: "Provider not found" });
+      }
+      
+      // Only allow access to approved providers
+      if (providerWithDetails.approvalStatus !== "approved") {
         return res.status(404).json({ message: "Provider not found" });
       }
       
@@ -445,6 +833,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to create review" });
     }
   });
+
+  // File upload routes
+  app.post("/api/upload/profile-picture", upload.single('image'), async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to upload files" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    try {
+      // Upload to S3
+      const s3Url = await uploadToS3(req.file.buffer, req.file.originalname, 'profile', req.file.mimetype);
+      // Update user profilePicture in DB
+      await storage.updateUser(req.user.id, { profilePicture: s3Url });
+      res.json({ url: s3Url });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to upload file" });
+    }
+  });
+
+  app.post("/api/upload/id-verification", upload.single('image'), async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to upload files" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    try {
+      // Upload to S3
+      const s3Url = await uploadToS3(req.file.buffer, req.file.originalname, 'id', req.file.mimetype);
+      // Update provider's idVerificationImage in DB
+      const provider = await storage.getServiceProviderByUserId(req.user.id);
+      if (provider) {
+        await storage.updateServiceProvider(provider.id, { idVerificationImage: s3Url });
+      }
+      res.json({ url: s3Url });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to upload file" });
+    }
+  });
+
+  // Serve uploaded files
+  app.use('/uploads', (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  });
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
   const httpServer = createServer(app);
   return httpServer;

@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import ImageUpload from "@/components/ImageUpload";
 
 // Profile update schema
 const profileSchema = z.object({
@@ -51,20 +52,20 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 type ProviderProfileFormValues = z.infer<typeof providerProfileSchema>;
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, serverUser } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("general");
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [idImage, setIdImage] = useState<File | null>(null);
   
-  // Fetch user profile
-  const { data: userProfile, isLoading: profileLoading } = useQuery<any>({
-    queryKey: ["/api/user"],
-    enabled: !!user,
-  });
+  // Use serverUser directly instead of fetching
+  const userProfile = serverUser;
+  const profileLoading = false;
   
   // Fetch provider profile if user is a service provider
   const { data: providerProfile, isLoading: providerLoading } = useQuery<any>({
     queryKey: ["/api/user/provider"],
-    enabled: !!user && user.isServiceProvider,
+    enabled: !!serverUser && serverUser.isServiceProvider,
   });
   
   // Fetch service categories for provider profile
@@ -284,197 +285,231 @@ export default function ProfilePage() {
             
             {/* Main content */}
             <div className="flex-1">
-              <TabsContent value="general" className="mt-0">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Profile Information</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Form {...profileForm}>
-                      <form onSubmit={profileForm.handleSubmit(onSubmitProfile)} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField
-                            control={profileForm.control}
-                            name="firstName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>First Name</FormLabel>
-                                <FormControl>
-                                  <Input {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          
-                          <FormField
-                            control={profileForm.control}
-                            name="lastName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Last Name</FormLabel>
-                                <FormControl>
-                                  <Input {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        
-                        <FormField
-                          control={profileForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email</FormLabel>
-                              <FormControl>
-                                <Input {...field} type="email" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <FormField
-                          control={profileForm.control}
-                          name="phoneNumber"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Phone Number (Optional)</FormLabel>
-                              <FormControl>
-                                <Input {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <FormField
-                          control={profileForm.control}
-                          name="profilePicture"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Profile Picture URL (Optional)</FormLabel>
-                              <FormControl>
-                                <Input {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <Button 
-                          type="submit"
-                          disabled={updateProfileMutation.isPending}
-                        >
-                          {updateProfileMutation.isPending ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            "Save Changes"
-                          )}
-                        </Button>
-                      </form>
-                    </Form>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="provider" className="mt-0">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Service Provider Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {providerLoading ? (
-                      <div className="flex justify-center py-8">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      </div>
-                    ) : (
-                      <Form {...providerForm}>
-                        <form onSubmit={providerForm.handleSubmit(onSubmitProviderProfile)} className="space-y-6">
-                          <FormField
-                            control={providerForm.control}
-                            name="categoryId"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Service Category</FormLabel>
-                                <Select 
-                                  onValueChange={field.onChange} 
-                                  defaultValue={field.value}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select your main service category" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {categories?.map((category) => (
-                                      <SelectItem 
-                                        key={category.id} 
-                                        value={category.id.toString()}
-                                      >
-                                        {category.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          
-                          <FormField
-                            control={providerForm.control}
-                            name="hourlyRate"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Hourly Rate ($)</FormLabel>
-                                <FormControl>
-                                  <Input 
-                                    type="number"
-                                    min="1"
-                                    step="0.01"
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          
-                          <FormField
-                            control={providerForm.control}
-                            name="bio"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>About Your Services</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    placeholder="Describe your experience, skills, and the services you offer..."
-                                    className="min-h-[150px]"
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          
+              <Tabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="w-full"
+              >
+                <TabsContent value="general" className="mt-0">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Profile Information</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Form {...profileForm}>
+                        <form onSubmit={profileForm.handleSubmit(onSubmitProfile)} className="space-y-6">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField
-                              control={providerForm.control}
-                              name="yearsOfExperience"
+                              control={profileForm.control}
+                              name="firstName"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Years of Experience</FormLabel>
+                                  <FormLabel>First Name</FormLabel>
+                                  <FormControl>
+                                    <Input {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <FormField
+                              control={profileForm.control}
+                              name="lastName"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Last Name</FormLabel>
+                                  <FormControl>
+                                    <Input {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          
+                          <FormField
+                            control={profileForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                  <Input {...field} type="email" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={profileForm.control}
+                            name="phoneNumber"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Phone Number (Optional)</FormLabel>
+                                <FormControl>
+                                  <Input {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={profileForm.control}
+                            name="profilePicture"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Profile Picture URL (Optional)</FormLabel>
+                                <FormControl>
+                                  <Input {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          {/* Profile Picture Upload */}
+                          <ImageUpload
+                            label="Update Profile Picture"
+                            description="Upload a new profile picture"
+                            onImageUpload={(file, url) => {
+                              setProfileImage(file);
+                              profileForm.setValue("profilePicture", url);
+                            }}
+                            currentImageUrl={userProfile?.profilePicture}
+                          />
+                          
+                          <Button 
+                            type="submit"
+                            disabled={updateProfileMutation.isPending}
+                          >
+                            {updateProfileMutation.isPending ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save Changes"
+                            )}
+                          </Button>
+                        </form>
+                      </Form>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                
+                <TabsContent value="provider" className="mt-0">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Service Provider Settings</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {providerLoading ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                      ) : (
+                        <Form {...providerForm}>
+                          <form onSubmit={providerForm.handleSubmit(onSubmitProviderProfile)} className="space-y-6">
+                            {/* Approval Status Display */}
+                            {providerProfile && (
+                              <div className="bg-neutral-50 p-4 rounded-lg">
+                                <h3 className="font-medium mb-2">Approval Status</h3>
+                                <div className="flex items-center gap-2">
+                                  {providerProfile.approvalStatus === "pending" && (
+                                    <>
+                                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                      <span className="text-yellow-700 font-medium">Pending Approval</span>
+                                    </>
+                                  )}
+                                  {providerProfile.approvalStatus === "approved" && (
+                                    <>
+                                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                      <span className="text-green-700 font-medium">Approved</span>
+                                    </>
+                                  )}
+                                  {providerProfile.approvalStatus === "rejected" && (
+                                    <>
+                                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                      <span className="text-red-700 font-medium">Rejected</span>
+                                    </>
+                                  )}
+                                </div>
+                                {providerProfile.approvalStatus === "pending" && (
+                                  <p className="text-sm text-neutral-600 mt-1">
+                                    Your application is under review. You'll be notified once it's processed.
+                                  </p>
+                                )}
+                                {providerProfile.approvalStatus === "rejected" && providerProfile.adminNotes && (
+                                  <div className="mt-2">
+                                    <p className="text-sm font-medium text-red-700">Reason for rejection:</p>
+                                    <p className="text-sm text-neutral-600 mt-1">{providerProfile.adminNotes}</p>
+                                  </div>
+                                )}
+                                {providerProfile.submittedAt && (
+                                  <p className="text-xs text-neutral-500 mt-2">
+                                    Submitted: {new Date(providerProfile.submittedAt).toLocaleDateString()}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* ID Verification Upload */}
+                            <ImageUpload
+                              label="ID Verification Document"
+                              description="Upload a clear photo of your government-issued ID for verification"
+                              onImageUpload={(file, url) => setIdImage(file)}
+                              currentImageUrl={providerProfile?.idVerificationImage}
+                              accept="image/*"
+                              maxSize={10}
+                              required={false}
+                              uploadType="id"
+                            />
+
+                            <FormField
+                              control={providerForm.control}
+                              name="categoryId"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Service Category</FormLabel>
+                                  <Select 
+                                    onValueChange={field.onChange} 
+                                    defaultValue={field.value}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select your main service category" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {categories?.map((category) => (
+                                        <SelectItem 
+                                          key={category.id} 
+                                          value={category.id.toString()}
+                                        >
+                                          {category.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <FormField
+                              control={providerForm.control}
+                              name="hourlyRate"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Hourly Rate ($)</FormLabel>
                                   <FormControl>
                                     <Input 
                                       type="number"
-                                      min="0"
+                                      min="1"
+                                      step="0.01"
                                       {...field}
                                     />
                                   </FormControl>
@@ -485,13 +520,14 @@ export default function ProfilePage() {
                             
                             <FormField
                               control={providerForm.control}
-                              name="availability"
+                              name="bio"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Availability</FormLabel>
+                                  <FormLabel>About Your Services</FormLabel>
                                   <FormControl>
-                                    <Input
-                                      placeholder="e.g., Weekdays 9AM-5PM"
+                                    <Textarea
+                                      placeholder="Describe your experience, skills, and the services you offer..."
+                                      className="min-h-[150px]"
                                       {...field}
                                     />
                                   </FormControl>
@@ -499,63 +535,100 @@ export default function ProfilePage() {
                                 </FormItem>
                               )}
                             />
-                          </div>
-                          
-                          <Button 
-                            type="submit"
-                            disabled={updateProviderProfileMutation.isPending}
-                          >
-                            {updateProviderProfileMutation.isPending ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Saving...
-                              </>
-                            ) : (
-                              "Save Provider Settings"
-                            )}
-                          </Button>
-                        </form>
-                      </Form>
-                    )}
-                    
-                    {!userProfile.isServiceProvider && (
-                      <div className="bg-neutral-50 p-4 rounded-lg mt-4">
-                        <h3 className="font-medium mb-2">Become a Service Provider</h3>
-                        <p className="text-neutral-600 text-sm mb-4">
-                          Complete the form above to set up your service provider profile and start offering your services to clients.
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="account" className="mt-0">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Account Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="font-medium mb-1">Change Password</h3>
-                        <p className="text-neutral-600 text-sm mb-4">
-                          Update your password to keep your account secure
-                        </p>
-                        <Button variant="outline">Change Password</Button>
-                      </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <FormField
+                                control={providerForm.control}
+                                name="yearsOfExperience"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Years of Experience</FormLabel>
+                                    <FormControl>
+                                      <Input 
+                                        type="number"
+                                        min="0"
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <FormField
+                                control={providerForm.control}
+                                name="availability"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Availability</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder="e.g., Weekdays 9AM-5PM"
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            
+                            <Button 
+                              type="submit"
+                              disabled={updateProviderProfileMutation.isPending}
+                            >
+                              {updateProviderProfileMutation.isPending ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                "Save Provider Settings"
+                              )}
+                            </Button>
+                          </form>
+                        </Form>
+                      )}
                       
-                      <div className="border-t pt-4 mt-6">
-                        <h3 className="font-medium text-red-600 mb-1">Danger Zone</h3>
-                        <p className="text-neutral-600 text-sm mb-4">
-                          Delete your account and all associated data
-                        </p>
-                        <Button variant="destructive">Delete Account</Button>
+                      {!userProfile.isServiceProvider && (
+                        <div className="bg-neutral-50 p-4 rounded-lg mt-4">
+                          <h3 className="font-medium mb-2">Become a Service Provider</h3>
+                          <p className="text-neutral-600 text-sm mb-4">
+                            Complete the form above to set up your service provider profile and start offering your services to clients.
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                
+                <TabsContent value="account" className="mt-0">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Account Settings</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="font-medium mb-1">Change Password</h3>
+                          <p className="text-neutral-600 text-sm mb-4">
+                            Update your password to keep your account secure
+                          </p>
+                          <Button variant="outline">Change Password</Button>
+                        </div>
+                        
+                        <div className="border-t pt-4 mt-6">
+                          <h3 className="font-medium text-red-600 mb-1">Danger Zone</h3>
+                          <p className="text-neutral-600 text-sm mb-4">
+                            Delete your account and all associated data
+                          </p>
+                          <Button variant="destructive">Delete Account</Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         </div>
