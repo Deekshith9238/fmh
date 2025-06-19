@@ -31,6 +31,12 @@ import {
 import { Redirect } from "wouter";
 import MainLayout from "@/components/MainLayout";
 import { useLocation } from "wouter";
+import { FcGoogle } from "react-icons/fc";
+import ImageUpload from "@/components/ImageUpload";
+import GoogleSignupDetails from "@/components/GoogleSignupDetails";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 // Login form schema
 const loginSchema = z.object({
@@ -74,14 +80,23 @@ interface AuthPageProps {
   isModal?: boolean;
   onClose?: () => void;
   defaultToProvider?: boolean;
+  defaultTab?: "login" | "register";
 }
 
-export default function AuthPage({ isModal = false, onClose, defaultToProvider = false }: AuthPageProps) {
-  const { user, loginMutation, registerMutation } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>(defaultToProvider ? "register" : "login");
+export default function AuthPage({ isModal = false, onClose, defaultToProvider = false, defaultTab = "login" }: AuthPageProps) {
+  const { user, loginMutation, registerMutation, googleLoginMutation, googleSignupMutation } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const [accountType, setAccountType] = useState<string>(defaultToProvider ? "provider" : "client");
+  const [showGoogleSignupDetails, setShowGoogleSignupDetails] = useState(false);
+  const [googleUserData, setGoogleUserData] = useState<any>(null);
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [idImage, setIdImage] = useState<File | null>(null);
   const { toast } = useToast();
   const [location, setLocation] = useLocation();
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState<string | null>(null);
   
   // Fetch service categories for provider signup
   const { data: categories = [] } = useQuery<{ id: number; name: string }[]>({
@@ -120,6 +135,12 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
   // Handle login form submission
   function onLoginSubmit(values: LoginFormValues) {
     loginMutation.mutate(values, {
+      onSuccess: () => {
+        // Close modal if this is a modal
+        if (isModal && onClose) {
+          onClose();
+        }
+      },
       onError: (error: any) => {
         if (error?.message?.includes("verify your email")) {
           toast({
@@ -153,6 +174,45 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
             description: "Please check your email to verify your account before logging in.",
           });
           setActiveTab("login");
+        } else {
+          // Close modal if this is a modal and no email verification required
+          if (isModal && onClose) {
+            onClose();
+          }
+        }
+      },
+    });
+  }
+
+  // Handle Google signup details submission
+  function onGoogleSignupDetailsSubmit(data: any, profileImg: File | null, idImg: File | null) {
+    googleSignupMutation.mutate({
+      ...data,
+      profileImage: profileImg,
+      idImage: idImg,
+    }, {
+      onSuccess: () => {
+        // Close modal if this is a modal
+        if (isModal && onClose) {
+          onClose();
+        }
+      },
+    });
+  }
+
+  // Handle Google login
+  function handleGoogleLogin() {
+    googleLoginMutation.mutate(undefined, {
+      onSuccess: (user: any) => {
+        // Check if user needs to complete profile
+        if (!user.displayName || !user.email) {
+          setGoogleUserData(user);
+          setShowGoogleSignupDetails(true);
+        } else {
+          // Close modal if this is a modal
+          if (isModal && onClose) {
+            onClose();
+          }
         }
       },
     });
@@ -164,10 +224,39 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
     registerForm.setValue("isServiceProvider", value === "provider");
   };
 
+  // Handle forgot password submit
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotLoading(true);
+    setForgotMessage(null);
+    try {
+      await sendPasswordResetEmail(auth, forgotEmail);
+      setForgotMessage("Password reset email sent! Please check your inbox.");
+    } catch (err: any) {
+      setForgotMessage(err.message || "Failed to send reset email");
+    } finally {
+      setForgotLoading(false);
+    }
+  }
+
+  // If showing Google signup details
+  if (showGoogleSignupDetails && googleUserData) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <GoogleSignupDetails
+          googleUser={googleUserData}
+          onSubmit={onGoogleSignupDetailsSubmit}
+          isLoading={googleSignupMutation?.isPending}
+        />
+      </div>
+    );
+  }
+
   // If user is already logged in and this is not a modal, redirect to home
   if (user && !isModal) {
     return <Redirect to="/" />;
   }
+
   // Render the auth page content
   const authContent = (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -184,6 +273,38 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
             <p className="text-sm text-muted-foreground mt-1">
               Enter your email below to login to your account
             </p>
+          </div>
+
+          {/* Google Login Button */}
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full"
+            onClick={handleGoogleLogin}
+            disabled={googleLoginMutation.isPending}
+          >
+            {googleLoginMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              <>
+                <FcGoogle className="mr-2 h-4 w-4" />
+                Continue with Google
+              </>
+            )}
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with
+              </span>
+            </div>
           </div>
 
           <Form {...loginForm}>
@@ -224,6 +345,20 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
                 )}
               />
 
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => {
+                    setShowForgotModal(true);
+                    setForgotEmail("");
+                    setForgotMessage(null);
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
               <Button 
                 type="submit" 
                 className="w-full"
@@ -241,6 +376,28 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
             </form>
           </Form>
         </div>
+        {/* Forgot Password Modal */}
+        <Dialog open={showForgotModal} onOpenChange={setShowForgotModal}>
+          <DialogContent className="max-w-sm w-full">
+            <h2 className="text-lg font-bold mb-2">Reset your password</h2>
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <Input
+                type="email"
+                placeholder="Enter your email"
+                value={forgotEmail}
+                onChange={e => setForgotEmail(e.target.value)}
+                required
+                autoFocus
+              />
+              <Button type="submit" className="w-full" disabled={forgotLoading}>
+                {forgotLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Send reset link"}
+              </Button>
+              {forgotMessage && (
+                <div className="text-sm text-center mt-2 text-muted-foreground">{forgotMessage}</div>
+              )}
+            </form>
+          </DialogContent>
+        </Dialog>
       </TabsContent>
 
       {/* Register Form */}
@@ -288,6 +445,38 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
                 <p className="text-sm text-neutral-500 mt-1">Offer skills & earn money</p>
               </Label>
             </RadioGroup>
+          </div>
+
+          {/* Google Sign Up Button */}
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full"
+            onClick={handleGoogleLogin}
+            disabled={googleLoginMutation.isPending}
+          >
+            {googleLoginMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating account...
+              </>
+            ) : (
+              <>
+                <FcGoogle className="mr-2 h-4 w-4" />
+                Sign up with Google
+              </>
+            )}
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with
+              </span>
+            </div>
           </div>
 
           <Form {...registerForm}>
@@ -378,10 +567,28 @@ export default function AuthPage({ isModal = false, onClose, defaultToProvider =
                 )}
               />
 
+              {/* Profile Picture Upload */}
+              <ImageUpload
+                label="Profile Picture"
+                description="Upload a clear photo of yourself for your profile"
+                onImageUpload={(file, url) => setProfileImage(file)}
+                required={true}
+              />
+
               {/* Provider-specific fields */}
               {accountType === "provider" && (
                 <div className="space-y-4 border-t pt-4 mt-4">
                   <h3 className="font-medium">Service provider details</h3>
+
+                  {/* ID Verification Upload */}
+                  <ImageUpload
+                    label="ID Verification"
+                    description="Upload a clear photo of your government-issued ID for verification"
+                    onImageUpload={(file, url) => setIdImage(file)}
+                    accept="image/*"
+                    maxSize={10}
+                    required={true}
+                  />
 
                   <FormField
                     control={registerForm.control}

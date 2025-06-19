@@ -18,8 +18,9 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const [location] = useLocation();
-  const { user, logoutMutation, isProvider } = useAuth();
+  const { user, serverUser, logoutMutation } = useAuth();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [authDefaultTab, setAuthDefaultTab] = useState<"login" | "register">("login");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
@@ -28,6 +29,22 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   const closeDialog = () => {
     setAuthDialogOpen(false);
+  };
+
+  const openAuthDialog = (tab: "login" | "register") => {
+    setAuthDefaultTab(tab);
+    setAuthDialogOpen(true);
+  };
+
+  // Get user initials from serverUser or Firebase user
+  const getUserInitials = () => {
+    if (serverUser?.firstName && serverUser?.lastName) {
+      return `${serverUser.firstName[0]}${serverUser.lastName[0]}`.toUpperCase();
+    }
+    if (user?.displayName) {
+      return user.displayName.split(' ').map((n) => n[0]).join('').toUpperCase();
+    }
+    return '?';
   };
 
   return (
@@ -52,18 +69,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
             </Link>
             {user && (
               <>
-                {isProvider ? (
-                  <Link href="/provider-dashboard" className="font-medium hover:text-primary transition-colors">
-                    Dashboard
-                  </Link>
-                ) : (
-                  <Link href="/client-dashboard" className="font-medium hover:text-primary transition-colors">
-                    Dashboard
-                  </Link>
-                )}
                 <Link href="/profile" className="font-medium hover:text-primary transition-colors">
                   Profile
                 </Link>
+                {serverUser?.isAdmin && (
+                  <Link href="/admin" className="font-medium hover:text-primary transition-colors text-red-600">
+                    Admin
+                  </Link>
+                )}
               </>
             )}
           </nav>
@@ -81,8 +94,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 </Button>
                 <Link href="/profile" className="hidden md:flex items-center space-x-2">
                   <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white">
-                    {user.firstName[0]}
-                    {user.lastName[0]}
+                    {getUserInitials()}
                   </div>
                 </Link>
               </>
@@ -91,13 +103,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 <Button
                   variant="outline"
                   className="hidden md:block"
-                  onClick={() => setAuthDialogOpen(true)}
+                  onClick={() => openAuthDialog("login")}
                 >
                   Log in
                 </Button>
                 <Button
                   className="hidden md:block"
-                  onClick={() => setAuthDialogOpen(true)}
+                  onClick={() => openAuthDialog("register")}
                 >
                   Sign up
                 </Button>
@@ -122,18 +134,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
                   
                   {user ? (
                     <>
-                      {isProvider ? (
-                        <Link href="/provider-dashboard" className="font-medium hover:text-primary transition-colors" onClick={() => setMobileMenuOpen(false)}>
-                          Dashboard
-                        </Link>
-                      ) : (
-                        <Link href="/client-dashboard" className="font-medium hover:text-primary transition-colors" onClick={() => setMobileMenuOpen(false)}>
-                          Dashboard
-                        </Link>
-                      )}
                       <Link href="/profile" className="font-medium hover:text-primary transition-colors" onClick={() => setMobileMenuOpen(false)}>
                         Profile
                       </Link>
+                      {serverUser?.isAdmin && (
+                        <Link href="/admin" className="font-medium hover:text-primary transition-colors text-red-600" onClick={() => setMobileMenuOpen(false)}>
+                          Admin
+                        </Link>
+                      )}
                       <Button 
                         variant="outline" 
                         onClick={() => {
@@ -149,7 +157,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                       <Button 
                         variant="outline" 
                         onClick={() => {
-                          setAuthDialogOpen(true);
+                          openAuthDialog("login");
                           setMobileMenuOpen(false);
                         }}
                       >
@@ -157,7 +165,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                       </Button>
                       <Button 
                         onClick={() => {
-                          setAuthDialogOpen(true);
+                          openAuthDialog("register");
                           setMobileMenuOpen(false);
                         }}
                       >
@@ -183,7 +191,11 @@ export default function MainLayout({ children }: MainLayoutProps) {
       {/* Auth Dialog */}
       <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
         <DialogContent className="sm:max-w-[425px] p-0">
-          <AuthPage isModal={true} onClose={closeDialog} />
+          <AuthPage 
+            isModal={true} 
+            onClose={closeDialog} 
+            defaultTab={authDefaultTab}
+          />
         </DialogContent>
       </Dialog>
     </div>
