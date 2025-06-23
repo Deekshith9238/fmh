@@ -17,13 +17,13 @@ dotenv.config();
 // Initialize Firebase Admin
 let serviceAccount;
 try {
-  const serviceAccountString = process.env.***REMOVED***;
+  const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccountString) {
     // Try to parse the service account JSON
     serviceAccount = JSON.parse(serviceAccountString);
     console.log("Firebase service account loaded successfully");
   } else {
-    console.warn("***REMOVED*** environment variable not set");
+    console.warn("FIREBASE_SERVICE_ACCOUNT environment variable not set");
   }
 } catch (error) {
   console.warn("Firebase service account not configured or invalid JSON, using default credentials");
@@ -119,7 +119,7 @@ const verifyFirebaseToken = async (req: any, res: any, next: any) => {
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.***REMOVED*** || "Find My Helper-secret-key",
+    secret: process.env.SESSION_SECRET || "Find My Helper-secret-key",
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,

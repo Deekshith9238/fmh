@@ -43,18 +43,18 @@ This guide will help you migrate from AWS SMTP authentication to Firebase Authen
 
 ```env
 # Firebase Configuration (Client-side)
-***REMOVED***=your_actual_api_key
-***REMOVED***=your_project.firebaseapp.com
-***REMOVED***=your_project_id
-***REMOVED***=your_project.appspot.com
-***REMOVED***=your_sender_id
-***REMOVED***=your_app_id
+VITE_FIREBASE_API_KEY=your_actual_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 
 # Firebase Admin SDK (Server-side)
-***REMOVED***={"type":"service_account","project_id":"your_project_id",...}
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"your_project_id",...}
 ```
 
-3. Replace the `***REMOVED***` value with the entire content of the JSON file you downloaded
+3. Replace the `FIREBASE_SERVICE_ACCOUNT` value with the entire content of the JSON file you downloaded
 
 ## Step 6: Update Database Schema
 
@@ -95,7 +95,7 @@ npm run dev
 ### Common Issues
 
 1. **"Firebase service account not configured"**
-   - Make sure you've set the `***REMOVED***` environment variable
+   - Make sure you've set the `FIREBASE_SERVICE_ACCOUNT` environment variable
    - The value should be the entire JSON content, not just a path
 
 2. **"Invalid token" errors**
