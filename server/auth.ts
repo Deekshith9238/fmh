@@ -125,13 +125,35 @@ export function setupAuth(app: Express) {
     store: storage.sessionStore,
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    }
+      secure: process.env.NODE_ENV === 'production', // Only use secure cookies in production
+      httpOnly: true,
+      sameSite: 'lax' as const
+    },
+    name: 'fmh.sid', // Custom session name
+    rolling: true, // Extend session on activity
+    unset: 'destroy' // Remove session from store when unset
   };
 
   app.set("trust proxy", 1);
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Middleware to handle invalid sessions
+  app.use((req, res, next) => {
+    if (req.isAuthenticated() && !req.user) {
+      // Session exists but user is not properly deserialized
+      console.warn('Invalid session detected, clearing session');
+      req.logout((err) => {
+        if (err) {
+          console.error('Error clearing invalid session:', err);
+        }
+        next();
+      });
+    } else {
+      next();
+    }
+  });
 
   passport.use(
     new LocalStrategy(
@@ -159,9 +181,22 @@ export function setupAuth(app: Express) {
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
     try {
+      // Validate that id is a valid number
+      if (!id || typeof id !== 'number' || isNaN(id)) {
+        console.warn('Invalid user ID in session:', id);
+        return done(null, false);
+      }
+
       const user = await storage.getUser(id);
+      
+      if (!user) {
+        console.warn('User not found during deserialization, ID:', id);
+        return done(null, false);
+      }
+      
       done(null, user);
     } catch (err) {
+      console.error('Error during user deserialization:', err);
       done(err);
     }
   });
@@ -478,5 +513,26 @@ export function setupAuth(app: Express) {
       console.error("Firebase authentication error:", error);
       res.status(500).json({ message: "Authentication failed" });
     }
+  });
+
+  // Debug endpoint to help diagnose session issues
+  app.get("/api/debug/session", (req, res) => {
+    res.json({
+      isAuthenticated: req.isAuthenticated(),
+      sessionID: req.sessionID,
+      user: req.user,
+      sessionData: req.session
+    });
+  });
+
+  // Endpoint to clear invalid sessions
+  app.post("/api/debug/clear-session", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        console.error('Error clearing session:', err);
+        return res.status(500).json({ message: 'Failed to clear session' });
+      }
+      res.json({ message: 'Session cleared successfully' });
+    });
   });
 }

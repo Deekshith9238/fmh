@@ -24,7 +24,7 @@ export async function setupVite(app: Express, server: Server) {
     throw new Error("setupVite should only be called in development mode");
   }
   const { createServer: createViteServer, createLogger } = await import("vite");
-  const viteConfig = (await import("../vite.config.js")).default;
+  const viteConfig = (await import("../vite.config.ts")).default;
   const viteLogger = createLogger();
 
   const serverOptions = {

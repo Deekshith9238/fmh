@@ -1,12 +1,14 @@
 # Stage 1: Build stage
 FROM node:20-alpine AS builder
 
-
 WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
 RUN npm install
+
+# Copy .env file first (for build-time environment variables)
+COPY .env .env
 
 # Copy full source code
 COPY . .

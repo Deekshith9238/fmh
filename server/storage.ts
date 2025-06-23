@@ -142,16 +142,26 @@ export class MemStorage implements IStorage {
 
   // User methods
   async getUser(id: number): Promise<User | undefined> {
-    const user = this.users.get(id);
-    
-    // In development, automatically set admin privileges for specific user ID
-    if (process.env.NODE_ENV === 'development' && user && id === 1 && !user.isAdmin) {
-      const updatedUser = { ...user, isAdmin: true };
-      this.users.set(id, updatedUser);
-      return updatedUser;
+    try {
+      const user = this.users.get(id);
+      
+      if (!user) {
+        console.warn(`User with ID ${id} not found in memory storage`);
+        return undefined;
+      }
+      
+      // In development, automatically set admin privileges for specific user ID
+      if (process.env.NODE_ENV === 'development' && id === 1 && !user.isAdmin) {
+        const updatedUser = { ...user, isAdmin: true };
+        this.users.set(id, updatedUser);
+        return updatedUser;
+      }
+      
+      return user;
+    } catch (error) {
+      console.error(`Error fetching user with ID ${id} from memory storage:`, error);
+      throw error;
     }
-    
-    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
@@ -505,8 +515,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    try {
+      const [user] = await db.select().from(users).where(eq(users.id, id));
+      if (!user) {
+        console.warn(`User with ID ${id} not found in database`);
+      }
+      return user;
+    } catch (error) {
+      console.error(`Error fetching user with ID ${id}:`, error);
+      throw error;
+    }
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
